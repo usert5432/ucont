@@ -1,0 +1,211 @@
+.TH UCONT 1 ucont-VERSION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:NAME
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH NAME
+ucont \- micro container manager.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SYNOPSIS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SYNOPSIS
+.B ucont
+.B COMMAND
+.RB [ ARGUMENT... ]
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:DESCRIPTION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH DESCRIPTION
+.B ucont
+is an application to create, mount, unmount ucont containers and execute
+commands inside them. This program is inspired by the Singularity application
+containers but aims to be as lightweight as possible (hence micro containers).
+.P
+The typical workflow with ucont container might look like this. Once you have
+obtained ucont container (by creating or downloading it) you can mount it under
+a globaly accessible location (
+.I /run/ucont/
+) with (run as root):
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+.nf
+.RS
+$ ucont mount LABEL CONTAINER_PATH
+.RE
+.fi
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+After container is mounted any user can execute commands inside of this
+container using LABEL as a reference to it. For example
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+.nf
+.RS
+$ ucont exec LABEL bash
+.RE
+.fi
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+will chroot into the container LABEL and execute bash shell inside it.
+See also
+.B EXAMPLES
+section of this manpage.
+.P
+The list of commands that
+.B ucont
+supports is located in the
+.B COMMANDS
+section of this manpage. The
+.B CONTAINER FORMAT
+section describes the format of the ucont containers. Finally, the
+.B MOUNT MODES
+section describes modes in which ucont containers can be mounted.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:COMMANDS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH COMMANDS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR create
+Create a new container. See Also
+.BR ucont-create (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI exec
+Execute command inside ucont container. See Also
+.BR ucont-create (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI mount
+Mount ucont container. See Also
+.BR ucont-mount (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI umount
+Unmount ucont container. See Also
+.BR ucont-mount (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI bind
+Bind host path to container. See Also
+.BR ucont-mount (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI unbind
+Unmount path in container. See Also
+.BR ucont-mount (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:CONTAINER FORMAT
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH CONTAINER FORMAT
+.B ucont
+can work with different container types. The ucont container can be any
+block device or sqfs filesystem image or even simply any directory. No
+requirements are placed on the container contents. However, ucont will work
+best if directory structure inside the container is FHS compliant.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:MOUNT MODES
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH MOUNT MODES
+Before users can launch applications in the ucont container environment the
+container itself should be mounted to a globally accessible location (usually
+under
+.I /run/ucont/LABEL
+).
+.P
+.B ucont
+supports two modes in which a container can be mounted
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.IP
+.B Direct Mode
+In this mode the container is mounted under
+.I /run/ucont/LABEL/direct
+directory. If supported, the container is mounted in the read-write mode.
+Container pseudo filesystems (
+.IR /dev ", " /proc ", " /sys
+) are bind mounted to point to the corresponding filesystems on the host.
+Similarly, container DNS resolution files (
+.IR /etc/resolv.conf ", " /etc/hosts
+) overridden by the corresponding host files. This ensures that after chroot
+into the mounted container users have a working network.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.IP
+.B Overlay Mode
+uses an overlayfs filesystem with container as a lower read-only layer. The
+read write layer is mounted on top and the overlaid container is mounted to
+the
+.I /run/ucont/LABEL/overlay
+directory. Similar to the direct mode, the pseudo filesystems are bind mounted
+from host. DNS resolution configs are bind mounted as well, but in addition
+to that
+.IR /etc/passwd ", " /etc/groups ", " /etc/localtime
+container configs are replaced by the corresponding host files. Finally,
+host
+.IR /home " and " /tmp
+are bind mounted to the container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+By default
+.B ucont
+commands assume that the container is mounted in the overlay mode. But you
+can specify a different mount mode using
+.B \-m
+.I MODE
+argument.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:EXAMPLES
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH EXAMPLES
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+.BI "Create a new container " office-container.sqfs " using
+.IB examples/office.conf " configuration"
+.nf
+.RS
+(root) $ ucont create -f sqfs examples/office.conf office-container.sqfs
+.RE
+.fi
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+.BI "Mount container " office-container.sqfs " with label " office
+.nf
+.RS
+(root) $ ucont mount office office-container.sqfs
+.RE
+.fi
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.P
+.BI "Execute command " libreoffice " inside container with label " office
+.nf
+.RS
+(user) $ ucont exec office libreoffice
+.RE
+.fi
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SECURITY
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SECURITY
+By default
+.B ucont
+mounts all containers in the
+.IR nosuid ", " nodev
+mode. This should eliminate obvious privilege escalation routes. However,
+if malicious code is run inside the container it can modify for example
+user's
+.I .bashrc
+(in the overlay mode) and place its bootstrap code there. This code will be
+executed on host next time the user launches their shell.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-create (1)
+Create ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-exec (1)
+Execute command inside container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-mount (1)
+Mount/Unmount container.

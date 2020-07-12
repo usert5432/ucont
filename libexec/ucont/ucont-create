@@ -1,0 +1,303 @@
+#!/usr/bin/env bash
+
+# shellcheck source=lib/ucont/funcs
+. "${LIBDIR}/ucont/funcs"   || exit 1
+
+usage ()
+{
+    cat <<EOF
+USAGE: ucont-create [OPTION...] CONFIG DEST
+
+Creates ucont container DEST from CONFIG.
+
+OPTIONS
+  -f, --format FORMAT       Container format
+                              Available formats: plain, sqfs, tar
+                              Default: plain
+  -h, --help [TEMPLATE]     If TEMPLATE is provided then show infromation about
+                              TEMPLATE usage.
+                              Otherwise, print this help message.
+  -t, --tmpdir TMPDIR       Temporary directory for building container
+                              Default: /tmp
+EOF
+
+    if [[ $# -gt 0 ]]
+    then
+        die "${*}"
+    else
+        exit 0
+    fi
+}
+
+template_usage ()
+{
+    load_bootstrap_template
+    bootstrap_usage
+    exit 0
+}
+
+verify_destination ()
+{
+    local dst="${1}"
+
+    [[ -e "${dst}" ]] && die "Destination already exists. Will not overwrite"
+    [[ -L "${dst}" ]] && die "Destination is a symlink. Will not follow"
+}
+
+verify_format ()
+{
+    local format="${1}"
+    local FORMATS=( plain sqfs tar )
+
+    for fmt in "${FORMATS[@]}"
+    do
+        [[ "${fmt}" == "${format}" ]] && return
+    done
+
+    die "Unknown format '${format}'"
+}
+
+unsymlink_basic_container_configs ()
+{
+    local dst="${1}"
+
+    for config in "${CONFIGS_DIRECT[@]}"
+    do
+        local path="${dst}/${config}"
+        [[ -L "${path}" ]] && rm -f "${path}"
+        touch "${path}"
+    done
+}
+
+load_container_config ()
+{
+    local conf="${1}"
+    . "${conf}" || die "Failed to source config '${conf}'"
+
+    [[ -z "${BOOTSTRAP_TYPE}" ]] && die "Bootstrap type is not specified"
+}
+
+load_bootstrap_template ()
+{
+    . "${BOOTSTRAP_TEMPLATES_DIR}/${BOOTSTRAP_TYPE}" \
+        || die "Failed to load bootstrap template '${BOOTSTRAP_TYPE}'"
+}
+
+create_setup_script ()
+{
+    local conf="${1}"
+    local fname="${2}"
+
+    local interpreter="${SCRIPT_INTERPRETER:-/bin/sh}"
+    echo -e "#!${interpreter}\n" > "${fname}" \
+        || die "Failed to write setup script '${fname}'"
+
+    cat "${conf}" >> "${fname}" \
+        || die "Failed to write setup script '${fname}'"
+
+    echo -e "\n${BOOTSTRAP_SCRIPT_SETUP_CMD}\n" >> "${fname}" \
+        || die "Failed to write setup script '${fname}'"
+
+    chmod ugo=rx "${fname}" || die "Failed to chmod setup script '${fname}'"
+}
+
+run_prepare_script ()
+{
+    local workdir="${1}"
+
+    command -v "${BOOTSTRAP_SCRIPT_PREPARE_CMD}" 2>/dev/null || return
+    info "Running container prepare script on host..."
+
+    "${BOOTSTRAP_SCRIPT_PREPARE_CMD}" "${workdir}" \
+        || die "Failed to run container prepare script"
+}
+
+run_setup_script ()
+{
+    local conf="${1}"
+    local workdir="${2}"
+
+    command -v "${BOOTSTRAP_SCRIPT_SETUP_CMD}" 2>/dev/null || return
+
+    info "Found setup script. Executing..."
+
+    local setup_script="${BOOTSTRAP_UCONT_DIR}/${BOOTSTRAP_SCRIPT_NAME}"
+    mkdir -p "${workdir}/${BOOTSTRAP_UCONT_DIR}" \
+        || die "Failed to create ucont bootstrap dir"
+
+    create_setup_script "${conf}" "${workdir}/${setup_script}"
+
+    local ret
+    local cont_name
+    cont_name="$(get_temp_container_name build)" \
+        || die "Failed to create temporary container path"
+
+    verbose_exec "${LIBEXECDIR}/ucont/ucont-mount" \
+        -m direct mount "${cont_name}" -- "${workdir}"  \
+            || die "Failed to mount container"
+
+    verbose_exec "${LIBEXECDIR}/ucont/ucont-exec" \
+        -m direct "${cont_name}" "/${setup_script}"
+    ret=$?
+
+    verbose_exec "${LIBEXECDIR}/ucont/ucont-mount" \
+        -m direct umount "${cont_name}" || die "Failed to umount container"
+
+    rm_container_dirs "${cont_name}"
+    [[ $ret -eq 0 ]] || die "Failed to run setup script"
+}
+
+create_image ()
+{
+    local workdir="${1}"
+    local dst="${2}"
+    local format="${3}"
+
+    case "${format}" in
+        plain)
+            ;;
+        tar)
+            tar -c -f "${dst}" -C "${workdir}" . \
+                || die "Failed to create container tar image"
+            ;;
+        sqfs|squashed)
+            mksquashfs "${workdir}" "${dst}" \
+                || die "Failed to create container sqfs image"
+            ;;
+        *)
+            die "Unknowm container image format '${format}'"
+            ;;
+    esac
+}
+
+cleanup ()
+{
+    local workdir="${1}"
+    local format="${2}"
+
+    if ! [[ "${format}" == "plain" ]]
+    then
+        rm -rf "${workdir}" || die "Failed to cleanup '${workdir}'"
+    fi
+}
+
+create_workdir ()
+{
+    local dst="${1}"
+    local format="${2}"
+    local tmpdir="${3}"
+    _create_workdir_result=""
+
+    if [[ "${format}" == "plain" ]]
+    then
+        _create_workdir_result="${dst}"
+        mkdir -p "${dst}"
+    else
+        _create_workdir_result="$(mktemp -d --tmpdir="${tmpdir}")"
+    fi
+
+    # shellcheck disable=SC2181
+    if [[ $? -ne 0 ]] || [[ -z "${_create_workdir_result}" ]]
+    then
+        die "Failed to create working directory"
+    else
+        info "Working directory is '${_create_workdir_result}'." \
+             "Clean up it manually if bootstrap fails."
+    fi
+}
+
+main ()
+{
+    local conf="${1}"
+    local dst="${2}"
+    local format="${3}"
+    local tmpdir="${4}"
+
+    verify_format      "${format}"
+    verify_destination "${dst}"
+
+    info "Loading container config..."
+    load_container_config "${conf}"
+
+    debug "Loading bootstrap config..."
+    load_bootstrap_template
+    bootstrap_check_config
+
+    info "Preparing working directory..."
+    create_workdir "${dst}" "${format}" "${tmpdir}"
+    local workdir="${_create_workdir_result}"
+
+    info "Starting container bootstrap..."
+    run_prepare_script "${workdir}"
+    bootstrap "${workdir}" || die "Failed to bootstrap"
+    unsymlink_basic_container_configs "${workdir}"
+
+    info "Handling custom container setup script..."
+    run_setup_script "${conf}" "${workdir}"
+
+    info "Creating container image..."
+    create_image "${workdir}" "${dst}" "${format}"
+
+    info "Cleaning up..."
+    cleanup "${workdir}" "${format}"
+}
+
+conf=
+dst=
+format="plain"
+tmpdir="/tmp"
+
+while [ $# -gt 0 ]
+do
+    case "${1}" in
+        -f|--format)
+            if [ "${2}" ]
+            then
+                format="${2}"
+                shift
+            else
+                usage "No FORMAT specified after ${1}"
+            fi
+            ;;
+        -t|--tmpdir)
+            if [ "${2}" ]
+            then
+                tmpdir="${2}"
+                shift
+            else
+                usage "No TMPDIR specified after ${1}"
+            fi
+            ;;
+        -h|--help)
+            if [ "${2}" ]
+            then
+                BOOTSTRAP_TYPE="${2}"
+                template_usage
+            else
+                usage
+            fi
+            ;;
+        *)
+            if [[ -z "${conf}" ]]
+            then
+                conf="${1}"
+            elif [[ -z "${dst}" ]]
+            then
+                dst="${1}"
+            else
+                usage "Unknown argument '${1}'"
+            fi
+            ;;
+    esac
+
+    shift
+done
+
+[[ -z "${conf}" ]]   && usage "No CONFIG specified"
+[[ -z "${dst}" ]]    && usage "No DEST specified"
+
+[[ -z "${format}" ]] && usage "No format specified"
+[[ -z "${tmpdir}" ]] && usage "No tmpdir specified"
+
+main "${conf}" "${dst}" "${format}" "${tmpdir}"
+

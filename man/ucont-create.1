@@ -1,0 +1,147 @@
+.TH UCONT-CREATE 1 ucont-create-VERSION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:NAME
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH NAME
+ucont-create \- create ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SYNOPSIS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SYNOPSIS
+.B ucont
+.RB [ OPTION... ]
+.I CONFIG
+.I DEST
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:DESCRIPTION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH DESCRIPTION
+.B ucont-create
+is a program to create ucont container based on the instructions in a
+configuration file. The structure of the configuration file that
+.B ucont-create
+expects is described below in the
+.B CONFIGURATION FILE STRUCTURE
+section.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-f ", " \-\-format " " \fIFORMAT\fR
+Format of the created container. Available container formats are:
+.RS
+.TP
+.I plain
+Container will be just a plain filesystem directory. Default.
+.TP
+.I sqfs
+Container will be a filesystem image compressed by Squashfs.
+.TP
+.I tar
+Container will be will be packed in tar archive.
+.RE
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-h ", " \-\-help " [" \fITEMPLATE\fR "]"
+If
+.I TEMPLATE
+arguments is provided then it will print TEMPLATE usage message. Otherwise,
+print
+.B ucont-create
+usage message.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-t ", " \-\-tmpdir " " \fITMPDIR\fR
+Temporary directory where container will be constructed before compression.
+If container format is
+.I plain
+then no temporary directory will be used.
+.RI "Default: " /tmp .
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:CONFIGURATION FILE STRUCTURE
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH CONFIGURATION FILE STRUCTURE
+A container configuration file is a
+.B bash
+script that should define a number of function and constants that will be used
+to create container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.B Constants
+.RS
+.TP
+.B BOOTSTRAP_TYPE
+Name of a bootstrap template. Supported templates:
+.IR pacstrap ", " debootstrap .
+Each bootstrap template is located in the
+.I ${DATADIR}/ucont/bootstrap
+directory and requires a number of additional constants defined for the proper
+operation.  Use \fIucont \-\-help TEMPLATE\fR to get information about TEMPLATE
+requirements.
+.TP
+.B SCRIPT_INTERPRETER
+Optional path to the script interpreter inside container. This interpreter will
+be used to run
+.B setup_container
+function if it is defined in the configuration file. If not specified then
+.I /bin/sh
+will be used as an interpreter.
+.RE
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.B Functions
+.RS
+.TP
+.B prepare_container
+Optional function that will be run to prepare container before bootstrap. This
+function is run on host and will receive a single argument - the absolute
+container path.
+.TP
+.B setup_container
+Optional function that will be run after the container has been bootstrapped.
+This function will be run inside the container with the interpreter specified
+by
+.BR SCRIPT_INTERPRETER .
+When this function is executed it will receive no arguments.
+.RE
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:TEMPLATES
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH TEMPLATES
+The bootstrap templates are located in
+.IR ${DATADIR}/ucont/bootstrap .
+Each bootstrap template is a bash script that should define three functions
+that will be called by the
+.B ucont-create
+script:
+.TP
+.B bootstrap_usage
+Should print usage message for this template.
+.TP
+.B bootstrap_check_config
+Function that verifies that all necessary config variables have been defined
+and necessary programs are available. If some variable is not defined or
+required program is not available this function should print an error message
+.RB "and " exit " (not simply return)."
+.TP
+.B bootstrap
+Main function that bootstraps container. Receives one argument -- the container
+path.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont (1)
+ucont container manager.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-exec (1)
+Execute command inside container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-mount (1)
+Mount/Unmount container.

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+#PACSTRAP_MIRRORS=
+#PACSTRAP_PACKAGES=
+
+bootstrap_usage ()
+{
+    cat <<EOF
+Template that runs archlinux's pacstrap script to bootstrap containers.
+
+The pacstrap template can be controlled by defining the following constants in
+the config file:
+
+PACSTRAP_MIRRORS
+    String containing a list of mirrors (one mirror per line) to download
+    packages from.
+
+PACSTRAP_PACKAGES, optional
+    Array of packages to be installed to the base system.
+EOF
+}
+
+check_var ()
+{
+    local vname="${1}"
+    [[ -z "${!vname}" ]] && die "Variable '"${vname}"' is not set"
+}
+
+bootstrap_check_config ()
+{
+    command -v pacstrap 1>/dev/null \
+        || die "pacstrap is not found on this system"
+
+    check_var PACSTRAP_MIRRORS
+}
+
+pacstrap_create_config ()
+{
+    local conf_path="${1}"
+    local mirror_list_path="${2}"
+
+    cat > "${conf_path}" <<EOF
+[options]
+HoldPkg      = pacman glibc
+Architecture = auto
+
+#XferCommand = /usr/bin/curl -L -C - -f -o %o %u
+XferCommand = /usr/bin/wget --passive-ftp -c -O %o %u
+
+SigLevel          = Never
+LocalFileSigLevel = Never
+
+[core]
+Include = ${mirror_list_path}
+
+[extra]
+Include = ${mirror_list_path}
+
+[community]
+Include = ${mirror_list_path}
+EOF
+}
+
+pacstrap_setup_keyring ()
+{
+    local dst="${1}"
+    exec_or_die arch-chroot "${dst}" \
+        /bin/sh -c 'pacman-key --init; pacman-key --populate archlinux'
+}
+
+pacstrap_prepare ()
+{
+    local mirror_list_path="${1}"
+    local pacman_conf_path="${2}"
+
+    mkdir -p "$(dirname "${mirror_list_path}")"
+    mkdir -p "$(dirname "${pacman_conf_path}")"
+
+    echo "${PACSTRAP_MIRRORS}" > "${mirror_list_path}"
+
+    pacstrap_create_config "${pacman_conf_path}" "${mirror_list_path}"
+}
+
+bootstrap ()
+{
+    local dst="${1}"
+    local mirror_list_path="${dst}/etc/pacman.d/mirrorlist"
+    local pacman_conf_path="${dst}/${BOOTSTRAP_UCONT_DIR}/pacman.conf"
+
+    info "Preparing pacstrap config files"
+    pacstrap_prepare "${mirror_list_path}" "${pacman_conf_path}"
+
+    info "Running pacstrap..."
+    exec_or_die pacstrap -G -C "${pacman_conf_path}" -M "${dst}" \
+        base "${PACSTRAP_PACKAGES[@]}"
+
+    info "Generating pacman keys..."
+    pacstrap_setup_keyring "${dst}"
+}
+

@@ -1,0 +1,504 @@
+#!/usr/bin/env bash
+
+# shellcheck source=lib/ucont/funcs
+. "${LIBDIR}/ucont/funcs"   || exit 1
+
+usage ()
+{
+    cat <<EOF
+USAGE: ucont-mount [OPTION...] ACTION NAME [ARG...]
+
+Mounts/unmounts ucont CONTAINER with NAME. Possible actions are
+  check               check if container is mounted
+  mount PATH          mount container PATH
+  bind PATH [CPATH]   bind mount PATH to CPATH in container NAME
+                        if CPATH is empty then it will bind mount PATH
+                        to PATH inside container NAME.
+  unbind CPATH        unmount CPATH in container NAME
+  umount              unmount container
+
+OPTIONS
+  -h, --help        Print this help message
+  -m, --mode MODE   Container mount mode.
+                      Possible values: direct, overlay
+                      Default: overlay
+EOF
+    die "${*}"
+}
+
+mkdir_and_chown ()
+{
+    local path="${1}"
+    exec_or_die mkdir -p -m 0755 "${path}"
+    exec_or_die chown root "${path}"
+}
+
+create_containers_rootdir ()
+{
+    mkdir_and_chown "${CONTAINERS_ROOT}"
+}
+
+create_container_mountdirs ()
+{
+    local cont_root="${1}"
+
+    local subdirs=(
+        ./
+        "${MOUNT_NAME_DIRECT}"
+        "${MOUNT_NAME_OVERLAY_LOWER}"
+        "${MOUNT_NAME_OVERLAY_UPPER}"
+        "${MOUNT_NAME_OVERLAY_WORK}"
+        "${MOUNT_NAME_OVERLAY}"
+    )
+
+    for subdir in "${subdirs[@]}"
+    do
+        local path="${cont_root}/${subdir}"
+        mountpoint -q "${path}" && continue
+
+        mkdir_and_chown "${path}"
+    done
+}
+
+mount_container_base ()
+{
+    local src="${1}"
+    local cont_root="${2}"
+    local mode="${3}"
+
+    local mount_dir
+    local mount_opts=( -o "nodev,nosuid" )
+
+    case "${mode}" in
+        "direct")
+            mount_opts+=( -o rw )
+            mount_dir="${cont_root}/${MOUNT_NAME_DIRECT}"
+            ;;
+        "overlay")
+            mount_opts+=( -o ro )
+            mount_dir="${cont_root}/${MOUNT_NAME_OVERLAY_LOWER}"
+            ;;
+        *)
+            die "Unknown mount mode '${mode}'"
+            ;;
+    esac
+
+    if [[ -d "${src}" ]]
+    then
+        mount_opts+=( --bind )
+    fi
+
+    mountpoint -q "${mount_dir}" \
+        && die "Root fs '${mount_dir}' is already mounted"
+
+    if ! verify_mount_dst "${mount_dir}"
+    then
+        die "Container mount destination '${mount_dir}' is not suitable"
+    fi
+
+    exec_or_die mount "${mount_opts[@]}" "${src}" "${mount_dir}"
+}
+
+verify_mount_dst ()
+{
+    local dst="${1}"
+
+    if [[ -L "${dst}" ]]
+    then
+        warn "Destination '${dst}' is a symlink. Will not mount"
+        return 1
+    fi
+
+    if ! [[ -e "${dst}" ]]
+    then
+        warn "Destination '${dst}' does not exist. Cannot mount"
+        return 1
+    fi
+
+    return 0
+}
+
+mount_container_home ()
+{
+    local cont_root="${1}"
+    local mount_dir="${cont_root}/${MOUNT_NAME_OVERLAY}/${MOUNT_NAME_HOME}"
+
+    mountpoint -q "${mount_dir}" \
+        && die "Home '${mount_dir}' is already mounted"
+
+    local mount_opts=( --rbind )
+
+    exec_or_die mkdir -p "${mount_dir}"
+
+    if verify_mount_dst "${mount_dir}"
+    then
+        exec_or_die \
+            mount "${mount_opts[@]}" "${MOUNT_NAME_HOME}" "${mount_dir}"
+    fi
+}
+
+mount_container_tmp ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+    local mount_dir
+
+    case "${mode}" in
+        "direct")
+            mount_dir="${cont_root}/${MOUNT_NAME_DIRECT}/${MOUNT_NAME_TMPFS}"
+            ;;
+        "overlay")
+            mount_dir="${cont_root}/${MOUNT_NAME_OVERLAY}/${MOUNT_NAME_TMPFS}"
+            ;;
+        *)
+            die "Unknown mount mode '${mode}'"
+            ;;
+    esac
+
+    mountpoint -q "${mount_dir}" \
+        && die "/tmp '${mount_dir}' is already mounted"
+
+    local mount_opts=( --rbind )
+
+    if verify_mount_dst "${mount_dir}"
+    then
+        exec_or_die \
+            mount "${mount_opts[@]}" "${MOUNT_NAME_TMPFS}" "${mount_dir}"
+    fi
+}
+
+mount_container_overlay ()
+{
+    local cont_root="${1}"
+    local mount_dir="${cont_root}/${MOUNT_NAME_OVERLAY}"
+
+    mountpoint -q "${mount_dir}" \
+        && die "Overlay fs '${mount_dir}' is already mounted"
+
+    # shellcheck disable=SC2191
+    local mount_opts=(
+        -t overlay
+        -o "nodev,nosuid"
+        -o lowerdir="${cont_root}/${MOUNT_NAME_OVERLAY_LOWER}"
+        -o upperdir="${cont_root}/${MOUNT_NAME_OVERLAY_UPPER}"
+        -o workdir="${cont_root}/${MOUNT_NAME_OVERLAY_WORK}"
+    )
+
+    if ! verify_mount_dst "${mount_dir}"
+    then
+        die "Container mount destination '${mount_dir}' is not suitable"
+    fi
+
+    exec_or_die mount "${mount_opts[@]}" none "${mount_dir}"
+}
+
+mount_pseudo_fs ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+    local mount_root
+
+    case "${mode}" in
+        "direct")
+            mount_root="${cont_root}/${MOUNT_NAME_DIRECT}"
+            ;;
+        "overlay")
+            mount_root="${cont_root}/${MOUNT_NAME_OVERLAY}"
+            ;;
+        *)
+            die "Unkwnown mount mode '${mode}'"
+            ;;
+    esac
+
+    for pseudo_fs in "${PSEUDO_FS_LIST[@]}"
+    do
+        local dst="${mount_root}/${pseudo_fs}"
+
+        if verify_mount_dst "${dst}"
+        then
+            exec_or_die mount --rbind "${pseudo_fs}" "${dst}"
+        fi
+    done
+}
+
+replace_file ()
+{
+    local src="${1}"
+    local dst="${2}"
+
+    if ! [[ -e "${src}" ]]
+    then
+        warn "File '${src}' does not exist"
+        return
+    fi
+
+    exec_or_die rm -f "${dst}"
+    exec_or_die touch "${dst}"
+    exec_or_die mount --bind -o ro "${src}" "${dst}"
+}
+
+bind_mount_file ()
+{
+    local src="${1}"
+    local dst="${2}"
+
+    if verify_mount_dst "${dst}"
+    then
+        exec_or_die mount --bind -o ro "${src}" "${dst}"
+    fi
+}
+
+setup_etc_files ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+
+    local mount_root
+    local config_files=( "${CONFIGS_DIRECT[@]}" )
+
+    case "${mode}" in
+        "direct")
+            mount_root="${cont_root}/${MOUNT_NAME_DIRECT}/"
+            ;;
+        "overlay")
+            mount_root="${cont_root}/${MOUNT_NAME_OVERLAY}/"
+            config_files+=( "${CONFIGS_OVERLAY[@]}" )
+            ;;
+        *)
+            die "Unknown mount mode '${mode}'"
+    esac
+
+    for file in "${config_files[@]}"
+    do
+        local src="${file}"
+        local dst="${mount_root}/${file}"
+
+        if [[ "${mode}" == "direct" ]]
+        then
+            bind_mount_file "${src}" "${dst}"
+        else
+            replace_file "${src}" "${dst}"
+        fi
+    done
+}
+
+unmount_if_mounted ()
+{
+    local mountpoint="${1}"
+
+    if mountpoint -q "${mountpoint}"
+    then
+        exec_or_die umount -R "${mountpoint}"
+    else
+        info "Container is not mounted to '${mountpoint}'"
+    fi
+}
+
+check_if_container_is_mounted ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+
+    case "${mode}" in
+        "direct")
+            mountpoint -q "${cont_root}/${MOUNT_NAME_DIRECT}"
+            return $?
+            ;;
+        "overlay")
+            mountpoint -q "${cont_root}/${MOUNT_NAME_OVERLAY}"
+            return $?
+            ;;
+        *)
+            die "Unkwnowm mode '${mode}'"
+            ;;
+    esac
+}
+
+ucont_check_mount ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+
+    if check_if_container_is_mounted "${cont_root}" "${mode}"
+    then
+        info "Container is mounted"
+        exit 0
+    else
+        info "Container is not mounted"
+        exit 1
+    fi
+}
+
+ucont_mount ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+    local src="${3}"
+
+    check_if_container_is_mounted "${cont_root}" "${mode}" \
+        && die "Container is already mounted"
+
+    info "Mounting container '${cont_root}'..."
+
+    create_containers_rootdir
+    create_container_mountdirs "${cont_root}"
+
+    mount_container_base "${src}" "${cont_root}" "${mode}"
+
+    if [[ "${mode}" == "overlay" ]]
+    then
+        mount_container_overlay "${cont_root}"
+        mount_container_home    "${cont_root}"
+    fi
+
+    mount_container_tmp "${cont_root}" "${mode}"
+    mount_pseudo_fs     "${cont_root}" "${mode}"
+    setup_etc_files     "${cont_root}" "${mode}"
+}
+
+ucont_umount ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+
+    if [[ "${mode}" == "direct" ]]
+    then
+        unmount_if_mounted "${cont_root}/${MOUNT_NAME_DIRECT}"
+    elif [[ "${mode}" == "overlay" ]]
+    then
+        unmount_if_mounted "${cont_root}/${MOUNT_NAME_OVERLAY}"
+        unmount_if_mounted "${cont_root}/${MOUNT_NAME_OVERLAY_LOWER}"
+    else
+        die "Unknown mode '${mode}'"
+    fi
+}
+
+ucont_bind ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+    local host_path="${3}"
+    local cont_path="${4}"
+
+    [[ -z "${cont_path}" ]] && cont_path="${host_path}"
+    local mount_path
+
+    if [[ "${mode}" == "direct" ]]
+    then
+        mount_path="${cont_root}/${MOUNT_NAME_DIRECT}/${cont_path}"
+    elif [[ "${mode}" == "overlay" ]]
+    then
+        mount_path="${cont_root}/${MOUNT_NAME_OVERLAY}/${cont_path}"
+    else
+        die "Unknown mode '${mode}'"
+    fi
+
+    if ! verify_mount_dst "${mount_path}"
+    then
+        die "Mount destination '${mount_path}' is not suitable"
+    fi
+
+    exec_or_die mount --rbind "${host_path}" "${mount_path}"
+}
+
+ucont_unbind ()
+{
+    local cont_root="${1}"
+    local mode="${2}"
+    local cont_path="${3}"
+
+    local mount_path
+
+    if [[ "${mode}" == "direct" ]]
+    then
+        mount_path="${cont_root}/${MOUNT_NAME_DIRECT}/${cont_path}"
+    elif [[ "${mode}" == "overlay" ]]
+    then
+        mount_path="${cont_root}/${MOUNT_NAME_OVERLAY}/${cont_path}"
+    else
+        die "Unknown mode '${mode}'"
+    fi
+
+    exec_or_die umount -R "${mount_path}"
+}
+
+main ()
+{
+    local action="${1}"
+    local name="${2}"
+    shift 2
+    local args=( "${@}" )
+
+    verify_mode "${mode}"
+
+    local cont_root
+    cont_root="$(get_container_rootdir "${name}")"
+    [[ -z "${cont_root}" ]] && die "Failed to get container root directory"
+
+    case "${action}" in
+        check)
+            [[ ${#args[@]} -ne 0 ]] && die "Invalid number of arguments"
+            ucont_check_mount "${cont_root}" "${mode}"
+            ;;
+        mount)
+            [[ ${#args[@]} -ne 1 ]] && die "Invalid number of arguments"
+            ucont_mount "${cont_root}" "${mode}" "${args[0]}"
+            ;;
+        umount)
+            [[ ${#args[@]} -ne 0 ]] && die "Invalid number of arguments"
+            ucont_umount "${cont_root}" "${mode}"
+            ;;
+        bind)
+            [[ ${#args[@]} -lt 1 ]] && die "Too few arguments"
+            [[ ${#args[@]} -gt 2 ]] && die "Too many arguments"
+            ucont_bind "${cont_root}" "${mode}" "${args[@]}"
+            ;;
+        unbind)
+            [[ ${#args[@]} -ne 1 ]] && die "Invalid number of arguments"
+            ucont_unbind "${cont_root}" "${mode}" "${args[@]}"
+            ;;
+        *)
+            die "Unknown action '${action}'"
+            ;;
+    esac
+}
+
+mode=overlay
+pargs=()
+
+while [ $# -gt 0 ]
+do
+    case "${1}" in
+        -m|--mode)
+            if [ "${2}" ]
+            then
+                mode="${2}"
+                shift
+            else
+                usage "No Mode specified after ${1}"
+            fi
+            ;;
+        -h|--help)
+            usage
+            ;;
+        --)
+            shift
+            pargs+=( "${@}" )
+            break
+            ;;
+        *)
+            pargs+=( "${1}" )
+            ;;
+    esac
+
+    shift
+done
+
+[[ ${#pargs[@]} -lt 2 ]] && usage "Not enough arguments specified"
+
+action="${pargs[0]}"
+name="${pargs[1]}"
+src=
+
+main "${action}" "${name}" "${pargs[@]:2}"
+

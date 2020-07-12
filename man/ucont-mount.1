@@ -1,0 +1,101 @@
+.TH UCONT-MOUNT 1 ucont-mount-VERSION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:NAME
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH NAME
+ucont-mount \- mount ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SYNOPSIS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SYNOPSIS
+.B ucont-mount
+.RB [ OPTION... ]
+.B ACTION
+.I NAME
+.RB [ ARGUMENT... ]
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:DESCRIPTION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH DESCRIPTION
+.B ucont-mount
+is a script to (un-)mount ucont containers to a globally accessible location
+.RI "under " /run/ucont .
+When container is mounted it is assigned a label
+.I NAME
+that can be used to refer to this container in the future (e.g. when running
+applications inside this container).
+.P
+The ucont containers can be mounted in either
+.BR direct " or " overlay " (default)"
+modes. The
+.B overlay
+mode (read-only) is indented to be a default mode for running applications
+inside ucont containers, while the
+.B direct
+mode (read-write) is intended for container modification. You can find more
+information about these modes in the
+.B MOUNT MODES
+section of the
+.BR ucont (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:ACTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH ACTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI check " NAME"
+Check if container
+.I NAME
+is mounted.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI mount " NAME PATH"
+.RI "Mount container " PATH " with label " NAME .
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI bind " NAME PATH " \fR[ CPATH \fR]
+.RI "Bind mount host path " PATH " to container " NAME .
+.RI "If " CPATH " is omitted then the host path " PATH " will be mounted to"
+.IR PATH " inside container. Otherwise, host path " PATH " will be mounted to"
+.IR CPATH " in the container."
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI umount " NAME"
+Unmount ucont container
+.IR NAME .
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BI unbind " NAME CPATH"
+.RI "Unmount path " CPATH " in the container " NAME .
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-h ", " \-\-help
+Print usage message.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-m ", " \-\-mode " " \fIMODE\fR
+.RI "Use mode " MODE " for (un-)mounting container " NAME .
+See Also
+.B MOUNT MODES
+section of the
+.BR ucont (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont (1)
+ucont container manager.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-create (1)
+Create ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-exec (1)
+Execute command inside container.

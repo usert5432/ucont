@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+BOOTSTRAP_TEMPLATES_DIR="${DATADIR}/ucont/bootstrap"
+BOOTSTRAP_UCONT_DIR=".ucont"
+BOOTSTRAP_SCRIPT_NAME="ucont-setup"
+BOOTSTRAP_SCRIPT_SETUP_CMD="setup_container"
+BOOTSTRAP_SCRIPT_PREPARE_CMD="prepare_container"
+
+CONTAINERS_ROOT="${RUNSTATEDIR}/ucont/"
+
+MOUNT_NAME_DIRECT="direct"
+MOUNT_NAME_OVERLAY_LOWER="overlay_lower"
+MOUNT_NAME_OVERLAY_UPPER="overlay_upper"
+MOUNT_NAME_OVERLAY_WORK="overlay_work"
+MOUNT_NAME_OVERLAY="overlay"
+
+MOUNT_NAME_TMPFS="/tmp"
+MOUNT_NAME_HOME="/home"
+
+PSEUDO_FS_LIST=( /dev /proc /sys )
+
+CONFIGS_DIRECT=(
+    /etc/hosts /etc/resolv.conf
+)
+
+CONFIGS_OVERLAY=(
+    /etc/group /etc/localtime /etc/passwd
+)
+

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+#DEBOOTSTRAP_MIRROR=
+#DEBOOTSTRAP_RELEASE=
+#DEBOOTSTRAP_ARGS=
+
+bootstrap_usage ()
+{
+    cat <<EOF
+Template that uses debian debootstrap bootstrap script to create containers.
+
+The debootstrap template can be controlled by defining the following constants
+in the config file:
+
+DEBOOTSTRAP_MIRROR
+    Mirror to download packages from.
+
+DEBOOTSTRAP_RELEASE
+    System release (aka SUITE in the debootstrap documentation)
+
+DEBOOTSTRAP_ARGS, optional
+    Array of optional arguments to be passed to the debootstrap script.
+    See 'man debootstrap' for the information.
+EOF
+}
+
+bootstrap_check_var ()
+{
+    local vname="${1}"
+    [[ -z "${!vname}" ]] && die "Variable '"${vname}"' is not set"
+}
+
+bootstrap_check_config ()
+{
+    command -v debootstrap 1>/dev/null \
+        || die "debootstrap is not found on this system"
+
+    bootstrap_check_var DEBOOTSTRAP_MIRROR
+    bootstrap_check_var DEBOOTSTRAP_RELEASE
+}
+
+bootstrap ()
+{
+    local dst="${1}"
+
+    debootstrap "${DEBOOTSTRAP_ARGS[@]}" \
+        "${DEBOOTSTRAP_RELEASE}" "${dst}" "${DEBOOTSTRAP_MIRROR}"
+}
+

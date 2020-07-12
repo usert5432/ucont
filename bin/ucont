@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# shellcheck source=lib/ucont/funcs
+. "${LIBDIR}/ucont/funcs" || exit 1
+
+usage ()
+{
+    cat <<EOF
+Usage: ucont COMMAND [ARG...]
+
+ucont container management application.
+
+COMMAND:
+    create              Create container.
+    exec                Run command inside container.
+    -h, --help, help    Print this help message.
+    mount               Mount container.
+    umount              Unmount container.
+    bind                Bind host path to container.
+    unbind              Unmount path in container.
+
+Run ucont COMMAND --help to see detailed help message for that COMMAND.
+
+EOF
+}
+
+cmd="${1}"
+shift
+
+case "${cmd}" in
+    create)
+        "${LIBEXECDIR}/ucont/ucont-create" "${@}"
+        ;;
+    mount|umount|bind|unbind)
+        "${LIBEXECDIR}/ucont/ucont-mount" "${cmd}" "${@}"
+        ;;
+    exec)
+        "${LIBEXECDIR}/ucont/ucont-exec" "${@}"
+        ;;
+    help|-h|--help|'')
+        usage
+        exit 0
+        ;;
+    *)
+        usage
+        die "Unknown CMD '${cmd}'"
+        ;;
+esac
+

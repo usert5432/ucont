@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+# shellcheck source=lib/ucont/funcs
+. "${LIBDIR}/ucont/funcs" || exit 1
+
+usage ()
+{
+    cat <<EOF
+USAGE: ucont-exec [OPTIONS] NAME [CMD]...
+
+Chroots into contaniner mounted under name NAME and executes CMD.
+If CMD is omitted then \${SHELL} will be executed.
+
+OPTIONS
+  -h, --help        Print this help message
+  -m, --mode MODE   Container mount mode.
+                      Possible values: direct, overlay
+                      Default: overlay
+EOF
+    if [[ $# -gt 0 ]]
+    then
+        die "${*}"
+    else
+        exit 0
+    fi
+}
+
+check_container_mounted ()
+{
+    local mountpoint="${1}"
+
+    mountpoint -q "${mountpoint}" \
+        || die "Cannot exec: Container '${name}' is not mounted"
+}
+
+main ()
+{
+    local name="${1}"
+    local mode="${2}"
+    shift 2
+    local cmd=( "${@}" )
+
+    verify_mode "${mode}"
+
+    local mountpoint
+    if ! mountpoint="$(get_container_mountpoint "${name}" "${mode}")"
+    then
+        die "Failed to get container mountpoint: ${mountpoint}"
+    fi
+
+    check_container_mounted "${mountpoint}"
+    "${LIBEXECDIR}/ucont/ucont-chroot" "${mountpoint}" "${cmd[@]}"
+}
+
+mode="overlay"
+pargs=()
+
+while [ $# -gt 0 ]
+do
+    case "${1}" in
+        -m|--mode)
+            if [ "${2}" ]
+            then
+                mode="${2}"
+                shift
+            else
+                usage "No Mode specified after ${1}"
+            fi
+            ;;
+        -h|--help)
+            usage
+            ;;
+        --)
+            shift
+            pargs+=( "${@}" )
+            break
+            ;;
+        *)
+            pargs+=( "${1}" )
+            ;;
+    esac
+
+    shift
+done
+
+[[ ${#pargs[@]} -lt 1 ]] && usage "Not enough arguments specified"
+
+name="${pargs[0]}"
+cmd=( "${pargs[@]:1}" )
+
+[[ "${#cmd[@]}" -eq 0 ]] && cmd=( "${SHELL}" )
+
+main "${name}" "${mode}" "${cmd[@]}"
+

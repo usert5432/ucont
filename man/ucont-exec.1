@@ -1,0 +1,59 @@
+.TH UCONT-EXEC 1 ucont-exec-VERSION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:NAME
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH NAME
+ucont-exec \- execute command in the mounted ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SYNOPSIS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SYNOPSIS
+.B ucont-exec
+.RB [ OPTION... ]
+.I NAME
+.RI [ COMMAND... ]
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:DESCRIPTION
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH DESCRIPTION
+.B ucont-exec
+will chroot into the mounted ucont container
+.IR NAME " and execute " COMMAND
+in the chrooted environment. If
+.I COMMAND
+is omitted then the shell defined by the
+.I ${SHELL}
+environment variable will be run.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH OPTIONS
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-h ", " \-\-help
+Print usage message.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR \-m ", " \-\-mode " " \fIMODE\fR
+Mode which was used for mounting container
+.IR NAME .
+See Also
+.B MOUNT MODES
+section of the
+.BR ucont (1).
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\" Section:SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.SH SEE ALSO
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont (1)
+ucont container manager.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-create (1)
+Create ucont container.
+\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.TP
+.BR ucont-mount (1)
+Mount/Unmount container.
